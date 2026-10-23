@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowDownRight, ArrowUpRight, Cpu, MemoryStick, Timer, Wifi } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ArrowDownRight, ArrowUpRight, Activity, Boxes, Cpu, Gauge } from 'lucide-react';
 import Sparkline from './ui/Sparkline';
-import { fmtDuration } from '../lib/mock';
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const walk = (arr, base, jitter, lo, hi) => [...arr.slice(1), clamp(arr[arr.length - 1] + (base - arr[arr.length - 1]) * 0.25 + (Math.random() - 0.5) * jitter, lo, hi)];
@@ -10,7 +9,7 @@ const initial = (base, jitter) => Array.from({ length: 28 }, (_, i) => base + Ma
 function Stat({ icon: Icon, label, value, unit, delta, good, data, color, caption }) {
   const Arrow = delta >= 0 ? ArrowUpRight : ArrowDownRight;
   return (
-    <div className="card group p-4 transition-colors hover:border-white/20">
+    <div className="card p-4 transition-colors hover:border-white/20">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-2 text-xs font-medium text-slate-400"><Icon className="h-3.5 w-3.5" aria-hidden />{label}</span>
         <span className={`inline-flex items-center gap-0.5 font-mono text-[11px] ${good ? 'text-emerald-400' : 'text-amber-400'}`}>
@@ -28,38 +27,35 @@ function Stat({ icon: Icon, label, value, unit, delta, good, data, color, captio
   );
 }
 
-const BUILD_HISTORY = [96, 102, 91, 88, 94, 99, 93, 90, 87, 92, 95, 89];
+const pct = (a) => Math.round(((a[a.length - 1] - a[0]) / a[0]) * 100);
 
-export default function Metrics({ buildSeconds, building }) {
-  const [cpu, setCpu] = useState(() => initial(36, 14));
-  const [mem, setMem] = useState(() => initial(2.4, 0.18));
-  const [bw, setBw] = useState(() => initial(1.8, 0.7));
-  const busy = useRef(building);
-  busy.current = building;
+export default function Metrics({ config }) {
+  const [rps, setRps] = useState(() => initial(142, 40));
+  const [p95, setP95] = useState(() => initial(180, 50));
+  const [inst, setInst] = useState(() => initial(Math.max(config.min, 3), 1.6));
+  const [cpu, setCpu] = useState(() => initial(38, 14));
 
   useEffect(() => {
     const t = setInterval(() => {
-      setCpu((a) => walk(a, busy.current ? 64 : 34, 16, 4, 98));
-      setMem((a) => walk(a, busy.current ? 3.1 : 2.4, 0.2, 0.8, 3.9));
-      setBw((a) => walk(a, 1.8, 0.9, 0.2, 4.5));
+      setRps((a) => walk(a, 142, 45, 20, 400));
+      setP95((a) => walk(a, 180, 60, 60, 900));
+      setInst((a) => walk(a, Math.max(config.min, 3), 1.8, config.min, config.max));
+      setCpu((a) => walk(a, 38, 16, 4, 98));
     }, 1800);
     return () => clearInterval(t);
-  }, []);
+  }, [config.min, config.max]);
 
   const last = (a) => a[a.length - 1];
-  const build = [...BUILD_HISTORY.slice(-11), buildSeconds];
-  const avg = BUILD_HISTORY.reduce((n, v) => n + v, 0) / BUILD_HISTORY.length;
-
   return (
-    <section aria-label="Resource metrics" className="grid animate-rise grid-cols-1 gap-4 [animation-delay:40ms] sm:grid-cols-2 xl:grid-cols-4">
-      <Stat icon={Timer} label="Build duration" value={fmtDuration(buildSeconds)} unit={building ? 'so far' : ''} caption="Last 12 builds"
-        delta={Math.round(((buildSeconds - avg) / avg) * 100)} good={buildSeconds <= avg} data={build} color="#a78bfa" />
-      <Stat icon={Cpu} label="CPU usage" value={last(cpu).toFixed(0)} unit="% of 2 vCPU" caption="Cluster pods · live"
-        delta={Math.round(last(cpu) - cpu[0])} good={last(cpu) < 75} data={cpu} color="#22d3ee" />
-      <Stat icon={MemoryStick} label="Memory" value={last(mem).toFixed(2)} unit="GB / 4 GB" caption="Resident set · live"
-        delta={Math.round(((last(mem) - mem[0]) / mem[0]) * 100)} good={last(mem) < 3.3} data={mem} color="#34d399" />
-      <Stat icon={Wifi} label="Bandwidth" value={last(bw).toFixed(1)} unit="MB/s" caption="Egress · last 24 samples"
-        delta={Math.round(((last(bw) - bw[0]) / bw[0]) * 100)} good data={bw} color="#fbbf24" />
+    <section aria-label="Service metrics" className="grid animate-rise grid-cols-1 gap-4 [animation-delay:40ms] sm:grid-cols-2 xl:grid-cols-4">
+      <Stat icon={Activity} label="Requests" value={last(rps).toFixed(0)} unit="req/s" caption="All revisions · live"
+        delta={pct(rps)} good data={rps} color="#a78bfa" />
+      <Stat icon={Gauge} label="Latency p95" value={last(p95).toFixed(0)} unit="ms" caption="Request latency · live"
+        delta={pct(p95)} good={last(p95) < 400} data={p95} color="#22d3ee" />
+      <Stat icon={Boxes} label="Container instances" value={Math.round(last(inst))} unit={`active · max ${config.max}`} caption={`Autoscaling ${config.min}–${config.max} · concurrency ${config.concurrency}`}
+        delta={pct(inst)} good data={inst} color="#34d399" />
+      <Stat icon={Cpu} label="CPU utilization" value={last(cpu).toFixed(0)} unit={`% of ${config.cpu}`} caption="Per instance · live"
+        delta={pct(cpu)} good={last(cpu) < 75} data={cpu} color="#fbbf24" />
     </section>
   );
 }

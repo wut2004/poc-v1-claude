@@ -6,13 +6,14 @@ import EnvHeader from './components/EnvHeader';
 import Pipeline from './components/Pipeline';
 import Terminal from './components/Terminal';
 import Metrics from './components/Metrics';
+import TrafficPanel from './components/TrafficPanel';
 import DeploymentTable from './components/DeploymentTable';
 import ArtifactsModal from './components/ArtifactsModal';
 import { Toasts } from './components/ui/Primitives';
 import { ToastProvider, useToast, writeClipboard } from './hooks';
 import { usePipeline } from './hooks/usePipeline';
 import { buildScript } from './lib/pipeline';
-import { ENVIRONMENTS, PROJECTS, envHost, makeDeployments, nextDeployment, shortHash } from './lib/mock';
+import { ENVIRONMENTS, PROJECTS, envHost, applyShift, makeDeployments, nextDeployment, shortHash, serviceName } from './lib/mock';
 
 function Workspace({ project, env, redeployTick }) {
   const toast = useToast();
@@ -28,10 +29,11 @@ function Workspace({ project, env, redeployTick }) {
     if (!pipeline.done) return;
     setDeployments((ds) => {
       if (ds[0].status !== 'building') return ds;
-      const isPreview = env.id === 'preview';
-      return ds.map((d, i) => (i === 0 ? { ...d, status: isPreview ? 'ready' : 'live', duration: Math.round(pipeline.elapsed) } : d.status === 'live' && !isPreview ? { ...d, status: 'ready' } : d));
+      const next = ds.map((d, i) => (i === 0 ? { ...d, status: 'ready', duration: Math.round(pipeline.elapsed) } : d));
+      // Staging routes 100% automatically; production/preview deploy with --no-traffic.
+      return env.id === 'staging' ? applyShift(next, next[0].id, 100) : next;
     });
-    toast(`Deployment ${shortHash(deployments[0].hash)} is ready`);
+    toast(env.id === 'staging' ? `Revision ${deployments[0].revision} is serving 100% traffic` : `Revision ${deployments[0].revision} deployed with 0% traffic`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pipeline.done]);
 
@@ -41,28 +43,30 @@ function Workspace({ project, env, redeployTick }) {
     setDeployments((ds) => [d, ...ds]);
     setActiveStage(null);
     pipeline.restart(buildScript(d, project, env));
-    toast(`Redeploy of ${shortHash(head.hash)} started`);
+    toast(`Deploying a new revision of ${serviceName(project.id, env.id)}…`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pipeline.done, head, project, env]);
 
   useEffect(() => { if (redeployTick) redeploy(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [redeployTick]);
 
-  const makeLive = (target, verb) => {
-    setDeployments((ds) => ds.map((d) => (d.id === target.id ? { ...d, status: 'live' } : d.status === 'live' ? { ...d, status: 'ready' } : d)));
-    toast(`${verb} ${shortHash(target.hash)} — traffic shifted`);
+  const shift = (target, pct, verb) => {
+    setDeployments((ds) => applyShift(ds, target.id, pct));
+    toast(`${verb} ${target.revision} — ${pct}% of traffic`);
   };
+  const makeLive = (target, verb) => shift(target, 100, verb);
   const onPromote = (d) => (env.id === 'production' ? makeLive(d, 'Promoted') : toast(`Promoted ${shortHash(d.hash)} to Production — rollout queued`));
 
   return (
     <div className="space-y-4 sm:space-y-6">
       <EnvHeader project={project} env={env} head={head} building={building} onRedeploy={redeploy} />
-      <Metrics buildSeconds={pipeline.elapsed} building={building} />
+      <Metrics config={project.config} />
+      <TrafficPanel project={project} env={env} deployments={deployments} building={building} onShift={(pct) => shift(head, pct, 'Rolled out')} />
       <div className="grid gap-4 sm:gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
         <Pipeline pipeline={pipeline} activeStage={activeStage} onSelect={setActiveStage} />
         <Terminal lines={pipeline.lines} activeStage={activeStage} streaming={building} />
       </div>
-      <DeploymentTable deployments={deployments} env={env} onPromote={onPromote} onRollback={(d) => makeLive(d, 'Rolled back to')} onArtifacts={setArtifactsFor} />
-      {artifactsFor && <ArtifactsModal deployment={artifactsFor} onClose={() => setArtifactsFor(null)} />}
+      <DeploymentTable deployments={deployments} env={env} onPromote={onPromote} onRollback={(d) => makeLive(d, 'Rolled back to')} onCanary={(d) => shift(d, 10, 'Canary')} onArtifacts={setArtifactsFor} />
+      {artifactsFor && <ArtifactsModal deployment={artifactsFor} project={project} onClose={() => setArtifactsFor(null)} />}
     </div>
   );
 }
@@ -85,8 +89,8 @@ function Portal() {
   }, []);
 
   const items = useMemo(() => [
-    { id: 'redeploy', group: 'Actions', label: 'Redeploy current environment', icon: Rocket, run: () => setRedeployTick((t) => t + 1) },
-    { id: 'copy', group: 'Actions', label: `Copy ${env.label} URL`, icon: Copy, run: async () => { if (await writeClipboard(`https://${envHost(project.id, env.id)}`)) toast('URL copied to clipboard'); } },
+    { id: 'redeploy', group: 'Actions', label: 'Deploy new revision', icon: Rocket, run: () => setRedeployTick((t) => t + 1) },
+    { id: 'copy', group: 'Actions', label: `Copy ${env.label} service URL`, icon: Copy, run: async () => { if (await writeClipboard(`https://${envHost(project.id, env.id)}`)) toast('URL copied to clipboard'); } },
     ...PROJECTS.map((p) => ({ id: `p-${p.id}`, group: 'Projects', label: `Switch to ${p.name}`, icon: FolderGit2, run: () => setProjectId(p.id) })),
     ...ENVIRONMENTS.map((e) => ({ id: `e-${e.id}`, group: 'Environments', label: `Go to ${e.label}`, icon: Globe, run: () => setEnvId(e.id) })),
   ], [env, project, toast]);

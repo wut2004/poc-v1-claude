@@ -19,7 +19,7 @@ export default function Navbar({ project, env, onProject, onEnv, onSearch }) {
         </a>
         <Slash />
 
-        <Menu label="Switch project" width="w-72" trigger={({ open, props }) => (
+        <Menu label="Switch service" width="w-72" trigger={({ open, props }) => (
           <button {...props} className={`flex h-9 items-center gap-2 rounded-lg px-2 text-sm font-medium text-white transition-colors hover:bg-white/10 ${open ? 'bg-white/10' : ''}`}>
             <span className={`h-5 w-5 rounded-md bg-gradient-to-br ${project.gradient}`} aria-hidden />
             <span className="max-w-[5.5rem] truncate sm:max-w-none">{project.name}</span>
@@ -28,9 +28,9 @@ export default function Navbar({ project, env, onProject, onEnv, onSearch }) {
         )}>
           {(close) => (
             <>
-              <MenuLabel>Projects</MenuLabel>
+              <MenuLabel>Cloud Run services · {project.gcp}</MenuLabel>
               {PROJECTS.map((p) => (
-                <MenuItem key={p.id} selected={p.id === project.id} description={p.framework}
+                <MenuItem key={p.id} selected={p.id === project.id} description={`${p.framework} · ${p.region}`}
                   icon={() => <span className={`h-4 w-4 rounded bg-gradient-to-br ${p.gradient}`} aria-hidden />}
                   onClick={() => { onProject(p.id); close(); }}>
                   {p.name}

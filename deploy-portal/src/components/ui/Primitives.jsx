@@ -14,13 +14,13 @@ export function Avatar({ person, size = 'h-7 w-7', text = 'text-[10px]', childre
 }
 
 const STATUS = {
-  live: { label: 'Live', cls: 'border-emerald-400/25 bg-emerald-400/10 text-emerald-300', dot: true },
+  live: { label: 'Serving', cls: 'border-emerald-400/25 bg-emerald-400/10 text-emerald-300', dot: true },
   ready: { label: 'Ready', cls: 'border-white/10 bg-white/5 text-slate-300', icon: Check },
-  building: { label: 'Building', cls: 'border-cyan-400/25 bg-cyan-400/10 text-cyan-300', icon: Loader2, spin: true },
+  building: { label: 'Deploying', cls: 'border-cyan-400/25 bg-cyan-400/10 text-cyan-300', icon: Loader2, spin: true },
   failed: { label: 'Failed', cls: 'border-rose-400/25 bg-rose-400/10 text-rose-300', icon: XCircle },
 };
 
-export function StatusBadge({ status }) {
+export function StatusBadge({ status, traffic }) {
   const s = STATUS[status];
   const Icon = s.icon;
   return (
@@ -32,7 +32,7 @@ export function StatusBadge({ status }) {
         </span>
       )}
       {Icon && <Icon className={`h-3 w-3 ${s.spin ? 'animate-spin' : ''}`} aria-hidden />}
-      {s.label}
+      {s.label}{status === 'live' && traffic != null && traffic < 100 ? ` · ${traffic}%` : ''}
     </span>
   );
 }

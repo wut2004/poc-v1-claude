@@ -85,7 +85,7 @@ export default function Terminal({ lines, activeStage, streaming }) {
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-white/10 px-4 py-3">
         <div className="flex items-center gap-2">
           <TerminalSquare className="h-4 w-4 text-slate-400" aria-hidden />
-          <h2 id="logs-title" className="text-sm font-semibold text-white">Build logs</h2>
+          <h2 id="logs-title" className="text-sm font-semibold text-white">Cloud Build logs</h2>
           {streaming ? (
             <span className="flex items-center gap-1.5 rounded-full bg-cyan-400/10 px-2 py-0.5 text-[11px] text-cyan-300"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" aria-hidden />Streaming</span>
           ) : (
@@ -118,7 +118,7 @@ export default function Terminal({ lines, activeStage, streaming }) {
         </div>
       </div>
 
-      <div ref={scroller} onScroll={onScroll} tabIndex={0} role="log" aria-label="Build log output" aria-live="off"
+      <div ref={scroller} onScroll={onScroll} tabIndex={0} role="log" aria-label="Cloud Build log output" aria-live="off"
         className="h-80 overflow-auto bg-black/40 py-2 font-mono text-[12.5px] leading-6 sm:h-[26rem]">
         {visible.length === 0 && (
           <p className="px-4 py-10 text-center font-sans text-sm text-slate-500">{lines.length ? 'No log lines match the current filters.' : 'Waiting for output…'}</p>
